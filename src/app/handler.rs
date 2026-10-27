@@ -179,13 +179,8 @@ impl App {
                                 .is_some_and(|p| p == requested_path) =>
                         {
                             if let Some(ui_state) = ui_state {
-                                use crate::implinfo::ImplInfo;
-                                match minicbor::decode::<ImplInfo>(&response.payload) {
-                                    Ok(info) => {
-                                        if let Some(board) = info.board {
-                                            ui_state.set_board_name(board);
-                                        }
-                                    }
+                                match minicbor::decode(&response.payload) {
+                                    Ok(info) => ui_state.set_impl_info(info),
                                     Err(e) => {
                                         ui_state.set_board_name(e.to_string());
                                     }
