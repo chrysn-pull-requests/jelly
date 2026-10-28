@@ -69,28 +69,12 @@ impl CommandHandler for CoapEdit {
 
                 // Following https://ratatui.rs/recipes/apps/spawn-vim/ around the editor invocaion
 
-                use crossterm::ExecutableCommand;
-                use ratatui::crossterm::terminal::{
-                    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
-                };
-                use std::io::stdout;
-                {
-                    crate::tui::PULL_EVENTS.store(false, std::sync::atomic::Ordering::Relaxed);
-                    std::thread::sleep(crate::tui::POLL_INTERVAL * 2);
-                    disable_raw_mode().unwrap();
-                    stdout().execute(LeaveAlternateScreen).unwrap();
-                }
-
-                let edited = edit::edit_with_builder(
-                    old_content,
-                    &edit::Builder::new().suffix("-").suffix(suffix),
-                );
-
-                {
-                    stdout().execute(EnterAlternateScreen).unwrap();
-                    enable_raw_mode().unwrap();
-                    crate::tui::PULL_EVENTS.store(true, std::sync::atomic::Ordering::Relaxed);
-                }
+                let edited = crate::tui::hands_off_terminal(|| {
+                    edit::edit_with_builder(
+                        old_content,
+                        &edit::Builder::new().suffix("-").suffix(suffix),
+                    )
+                });
 
                 let edited = edited
                     .map_err(|e| {
