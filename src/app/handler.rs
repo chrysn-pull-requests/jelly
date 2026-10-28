@@ -23,6 +23,9 @@ use crate::tui::UiState;
 impl App {
     fn on_well_known_core(&mut self, response: &Packet) {
         let mut eps: Vec<String> = vec![];
+
+        let mut editables: Vec<String> = vec![];
+
         // Poor mans clif parser
         for s in String::from_utf8_lossy(&response.payload).split(',') {
             let Some(maybe) = s.strip_prefix('<') else {
@@ -62,6 +65,13 @@ impl App {
                 self.send_configuration_request(&mut request.message);
                 self.configuration_log.add_new(Request::new(request));
             }
+            if params.contains("core.p") {
+                editables.push(s.to_owned());
+            }
+        }
+
+        if !editables.is_empty() {
+            self.command_library.add(Command::new_edit(editables));
         }
 
         self.command_library.check_for_new_available_commands(&eps);

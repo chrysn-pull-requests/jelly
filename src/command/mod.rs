@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 
 use coap_lite::{CoapRequest, Packet};
 
+use commands::CoapEdit;
 use commands::CoapGet;
 pub use commands::InternalCommand;
 pub use library::CommandLibrary;
@@ -107,6 +108,17 @@ impl Command {
     pub fn update_description(&mut self, description: &str) {
         self.description.clear();
         self.description.push_str(description);
+    }
+
+    /// Creates a command that, when run, GETs a resource, places its content in the edit line, and
+    /// PUTs it back up.
+    pub fn new_edit(locations: Vec<String>) -> Self {
+        Self {
+            cmd: "edit".to_string(),
+            description: "Performs a read-modify-write operation on a resource".to_string(),
+            required_endpoints: vec![],
+            parse: |c, a| CoapEdit::parse(c, a),
+        }
     }
 }
 

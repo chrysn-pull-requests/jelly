@@ -25,8 +25,24 @@ mod color;
 mod render;
 mod ui_state;
 
+pub static PULL_EVENTS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+pub const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+
 fn terminal_thread(sender: &Sender<Event>) {
     loop {
+        loop {
+            if crossterm::event::poll(POLL_INTERVAL).unwrap() {
+                let mut was_paused = false;
+                while PULL_EVENTS.load(std::sync::atomic::Ordering::Relaxed) == false {
+                    std::thread::sleep(POLL_INTERVAL);
+                    was_paused = true;
+                }
+                if was_paused {
+                    sender.send(Event::TerminalRedraw).unwrap();
+                }
+                break;
+            }
+        }
         match crossterm::event::read().unwrap() {
             crossterm::event::Event::Key(key) => {
                 sender.send(Event::TerminalKey(key)).unwrap();
@@ -124,6 +140,10 @@ pub fn start_tui(args: Cli, main_channel: EventChannel) {
         ) {
             ProcessEventResult::NothingToDo => {
                 if ui_state.is_dirty() {
+                    if ui_state.pending_clear {
+                        terminal.clear().unwrap();
+                        ui_state.pending_clear = false;
+                    }
                     terminal
                         .draw(|frame| app.draw(&mut ui_state, frame))
                         .unwrap();
@@ -237,6 +257,10 @@ pub fn process_next_event(
         }
         Event::TerminalMouse(mouse) => {
             ui_state.on_mouse(mouse);
+        }
+        Event::TerminalRedraw => {
+            ui_state.get_dirty();
+            ui_state.pending_clear = true;
         }
         Event::TerminalResize | Event::TerminalEOF => ui_state.get_dirty(),
         Event::NetworkConnect(interface_name) => {
