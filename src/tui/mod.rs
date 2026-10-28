@@ -29,21 +29,19 @@ pub static PULL_EVENTS: std::sync::atomic::AtomicBool = std::sync::atomic::Atomi
 pub const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
 
 fn terminal_thread(sender: &Sender<Event>) {
+    tokio::runtime::Builder::new_current_thread()
+        .name("event-processing")
+        .build()
+        .unwrap()
+        .block_on(terminal_task(sender));
+}
+
+async fn terminal_task(sender: &Sender<Event>) {
+    use futures::StreamExt as _;
+    let mut stream = crossterm::event::EventStream::new();
     loop {
-        loop {
-            if crossterm::event::poll(POLL_INTERVAL).unwrap() {
-                let mut was_paused = false;
-                while PULL_EVENTS.load(std::sync::atomic::Ordering::Relaxed) == false {
-                    std::thread::sleep(POLL_INTERVAL);
-                    was_paused = true;
-                }
-                if was_paused {
-                    sender.send(Event::TerminalRedraw).unwrap();
-                }
-                break;
-            }
-        }
-        match crossterm::event::read().unwrap() {
+        let event = stream.next().await.unwrap().unwrap();
+        match event {
             crossterm::event::Event::Key(key) => {
                 sender.send(Event::TerminalKey(key)).unwrap();
             }

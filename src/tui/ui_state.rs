@@ -60,7 +60,7 @@ impl UiState {
             theme: ColorPalette::from(color_theme),
 
             dirty: true,
-            pending_clear: true,
+            pending_clear: false,
         }
     }
 
