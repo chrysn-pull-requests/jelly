@@ -23,9 +23,6 @@ use crate::tui::UiState;
 impl App {
     fn on_well_known_core(&mut self, response: &Packet) {
         let mut eps: Vec<String> = vec![];
-
-        let mut editables: Vec<String> = vec![];
-
         // Poor mans clif parser
         for s in String::from_utf8_lossy(&response.payload).split(',') {
             let Some(maybe) = s.strip_prefix('<') else {
@@ -65,13 +62,6 @@ impl App {
                 self.send_configuration_request(&mut request.message);
                 self.configuration_log.add_new(Request::new(request));
             }
-            if params.contains("core.p") {
-                editables.push(s.to_owned());
-            }
-        }
-
-        if !editables.is_empty() {
-            self.command_library.add(Command::new_edit(editables));
         }
 
         self.command_library.check_for_new_available_commands(&eps);
@@ -158,6 +148,18 @@ impl App {
             if let Some(request) = self.configuration_log.get_request_by_token_mut(hash_index) {
                 request.add_response(response.clone());
 
+                if request.req.get_method() == &Method::Get {
+                    let edit = Command::new_edit(&request.req, &response);
+                    if let Some(old_edit) = self.command_library.find_by_cmd_mut("edit") {
+                        *old_edit = edit;
+                    } else {
+                        self.command_library.add(edit);
+                        // Not sure if this is costly, but nothing about the command's presentation
+                        // changed unless we're inserting it for the first time.
+                        altered_available_commands = true;
+                    }
+                }
+
                 let option_list_ = request.req.message.get_option(CoapOption::UriPath);
                 if let Some(option_list) = option_list_ {
                     let mut uri_path = String::new();
@@ -213,6 +215,7 @@ impl App {
                         }
                     }
                 }
+
                 true
             } else {
                 // This should never happen, as it means that the riot node
