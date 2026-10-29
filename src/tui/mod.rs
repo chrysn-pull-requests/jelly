@@ -26,6 +26,13 @@ mod color;
 mod render;
 mod ui_state;
 
+/// Signal sendable into the terminal thread that no receive operations should be performed while
+/// the Sender is set to true.
+///
+/// There is no back channel: Switching to lockout mode, there's at most one event (key) swallowed,
+/// and that competes on a running thread with a process being started. Switching back from lockout
+/// mode, whatever used to read events is already gone, so that component won't be reading any
+/// more, and events queue up anyway.
 static SET_LOCKOUT: std::sync::Mutex<Option<tokio::sync::watch::Sender<bool>>> =
     std::sync::Mutex::new(None);
 
@@ -186,7 +193,11 @@ pub fn start_tui(args: Cli, main_channel: EventChannel) {
             ProcessEventResult::NothingToDo => {
                 if ui_state.is_dirty() {
                     if ui_state.pending_clear {
-                        terminal.clear().unwrap();
+                        // We can't run terminal.clear() because that would also query the cursor
+                        // location and expect to be the one reading it -- but we're reading from
+                        // another thread.
+                        terminal.current_buffer_mut().reset();
+                        terminal.swap_buffers();
                         ui_state.pending_clear = false;
                     }
                     terminal
